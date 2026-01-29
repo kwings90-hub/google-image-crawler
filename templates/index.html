@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구글 이미지 크롤러</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 40px 0 30px;
+        }
+        header h1 {
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        header p { color: #888; font-size: 14px; }
+
+        /* Search Section */
+        .search-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid #2a2a2a;
+        }
+        .search-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px 16px;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-input:focus { border-color: #4a9eff; }
+        .search-input::placeholder { color: #555; }
+
+        .count-input {
+            width: 80px;
+            padding: 12px;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 15px;
+            text-align: center;
+            outline: none;
+        }
+        .count-input:focus { border-color: #4a9eff; }
+
+        select {
+            padding: 12px 16px;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: #4a9eff;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #3a8eef; }
+        .btn-primary:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .btn-success {
+            background: #22c55e;
+            color: #fff;
+        }
+        .btn-success:hover { background: #16a34a; }
+        .btn-success:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #333;
+            color: #ccc;
+        }
+        .btn-secondary:hover { background: #444; }
+        .btn-danger {
+            background: #ef4444;
+            color: #fff;
+        }
+        .btn-danger:hover { background: #dc2626; }
+
+        /* Status */
+        .status-bar {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            border: 1px solid #2a2a2a;
+            display: none;
+        }
+        .status-bar.show { display: block; }
+        .status-text { font-size: 14px; color: #aaa; }
+        .status-text .highlight { color: #4a9eff; font-weight: 600; }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #4a9eff;
+            border-radius: 2px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        /* Actions */
+        .actions-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            display: none;
+        }
+        .actions-bar.show { display: flex; }
+
+        /* Results Grid */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .image-card {
+            position: relative;
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #2a2a2a;
+            transition: border-color 0.2s;
+        }
+        .image-card:hover { border-color: #4a9eff; }
+        .image-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+        }
+        .image-card .info {
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #888;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .image-card .badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(34, 197, 94, 0.9);
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            display: none;
+        }
+        .image-card .badge.show { display: block; }
+        .image-card .error-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(239, 68, 68, 0.9);
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* URL List (검색 결과) */
+        .url-item {
+            position: relative;
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #2a2a2a;
+        }
+        .url-item .url-preview {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+            background: #111;
+        }
+        .url-item .url-text {
+            padding: 8px 12px;
+            font-size: 11px;
+            color: #666;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: #555;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Google Image Crawler</h1>
+            <p>구글 이미지 검색 및 다운로드</p>
+        </header>
+
+        <!-- 검색 -->
+        <div class="search-section">
+            <div class="search-row">
+                <input type="text" id="keyword" class="search-input"
+                       placeholder="검색 키워드 입력..." autocomplete="off">
+                <input type="number" id="count" class="count-input"
+                       value="20" min="1" max="50" title="검색 개수">
+                <select id="mode">
+                    <option value="crawl">크롤링 모드</option>
+                    {% if has_api %}
+                    <option value="api">API 모드</option>
+                    {% endif %}
+                </select>
+                <button class="btn btn-primary" id="btnSearch" onclick="doSearch()">검색</button>
+            </div>
+        </div>
+
+        <!-- 상태 -->
+        <div class="status-bar" id="statusBar">
+            <div class="status-text" id="statusText"></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <!-- 액션 버튼 -->
+        <div class="actions-bar" id="actionsBar">
+            <button class="btn btn-success" id="btnDownload" onclick="doDownload()" disabled>
+                다운로드 (0개)
+            </button>
+            <button class="btn btn-secondary" id="btnZip" onclick="doDownloadZip()" disabled>
+                ZIP 다운로드
+            </button>
+            <button class="btn btn-danger" id="btnClear" onclick="doClear()">
+                초기화
+            </button>
+        </div>
+
+        <!-- 결과 -->
+        <div class="results-grid" id="resultsGrid"></div>
+
+        <footer>
+            Google Image Crawler &mdash; 교육 및 개인 용도 전용
+        </footer>
+    </div>
+
+    <script>
+        let searchedUrls = [];
+        let currentFolder = '';
+
+        const $ = id => document.getElementById(id);
+
+        function setStatus(text, progress) {
+            const bar = $('statusBar');
+            bar.classList.add('show');
+            $('statusText').innerHTML = text;
+            if (progress !== undefined) {
+                $('progressFill').style.width = progress + '%';
+            }
+        }
+
+        function hideStatus() {
+            $('statusBar').classList.remove('show');
+        }
+
+        function showActions() {
+            $('actionsBar').classList.add('show');
+        }
+
+        // 검색
+        async function doSearch() {
+            const keyword = $('keyword').value.trim();
+            const count = parseInt($('count').value) || 20;
+            const mode = $('mode').value;
+
+            if (!keyword) {
+                alert('검색 키워드를 입력해주세요.');
+                return;
+            }
+
+            $('btnSearch').disabled = true;
+            $('btnSearch').innerHTML = '<span class="spinner"></span>검색 중...';
+            setStatus(`<span class="highlight">"${keyword}"</span> 검색 중...`, 30);
+
+            try {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword, count, mode }),
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    alert(data.error || '검색 실패');
+                    return;
+                }
+
+                searchedUrls = data.urls || [];
+                setStatus(
+                    `<span class="highlight">"${keyword}"</span> 검색 완료: ` +
+                    `<span class="highlight">${searchedUrls.length}개</span> 이미지 발견`,
+                    100
+                );
+
+                renderSearchResults(searchedUrls);
+                showActions();
+                $('btnDownload').disabled = false;
+                $('btnDownload').textContent = `다운로드 (${searchedUrls.length}개)`;
+
+            } catch (e) {
+                alert('검색 중 오류: ' + e.message);
+            } finally {
+                $('btnSearch').disabled = false;
+                $('btnSearch').textContent = '검색';
+            }
+        }
+
+        function renderSearchResults(urls) {
+            const grid = $('resultsGrid');
+            grid.innerHTML = '';
+
+            urls.forEach((url, idx) => {
+                const card = document.createElement('div');
+                card.className = 'url-item';
+                card.innerHTML = `
+                    <img class="url-preview" src="${url}"
+                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><rect fill=%22%23222%22 width=%22200%22 height=%22200%22/><text fill=%22%23555%22 x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2214%22>No Preview</text></svg>'"
+                         loading="lazy">
+                    <div class="url-text" title="${url}">${url}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // 다운로드
+        async function doDownload() {
+            if (searchedUrls.length === 0) return;
+
+            const keyword = $('keyword').value.trim() || 'images';
+
+            $('btnDownload').disabled = true;
+            $('btnDownload').innerHTML = '<span class="spinner"></span>다운로드 중...';
+            setStatus(`<span class="highlight">${searchedUrls.length}개</span> 이미지 다운로드 중...`, 50);
+
+            try {
+                const res = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ urls: searchedUrls, keyword }),
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    alert(data.error || '다운로드 실패');
+                    return;
+                }
+
+                currentFolder = data.folder;
+                setStatus(
+                    `다운로드 완료: <span class="highlight">${data.downloaded}/${data.total}개</span> 성공`,
+                    100
+                );
+
+                renderDownloadedResults(data.files);
+                $('btnZip').disabled = false;
+
+            } catch (e) {
+                alert('다운로드 오류: ' + e.message);
+            } finally {
+                $('btnDownload').disabled = false;
+                $('btnDownload').textContent = `다운로드 (${searchedUrls.length}개)`;
+            }
+        }
+
+        function renderDownloadedResults(files) {
+            const grid = $('resultsGrid');
+            grid.innerHTML = '';
+
+            files.forEach(file => {
+                const card = document.createElement('div');
+                card.className = 'image-card';
+                card.innerHTML = `
+                    <img src="${file.path}" loading="lazy"
+                         onerror="this.parentElement.innerHTML+='<div class=\\'error-badge\\'>Error</div>'">
+                    <div class="badge show">${file.size_mb}MB</div>
+                    <div class="info">${file.filename}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // ZIP 다운로드
+        async function doDownloadZip() {
+            if (!currentFolder) return;
+
+            $('btnZip').disabled = true;
+            $('btnZip').innerHTML = '<span class="spinner"></span>ZIP 생성 중...';
+
+            try {
+                const res = await fetch('/api/download-zip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder: currentFolder }),
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.error || 'ZIP 생성 실패');
+                    return;
+                }
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = currentFolder + '.zip';
+                a.click();
+                URL.revokeObjectURL(url);
+
+            } catch (e) {
+                alert('ZIP 다운로드 오류: ' + e.message);
+            } finally {
+                $('btnZip').disabled = false;
+                $('btnZip').textContent = 'ZIP 다운로드';
+            }
+        }
+
+        // 초기화
+        function doClear() {
+            searchedUrls = [];
+            currentFolder = '';
+            $('resultsGrid').innerHTML = '';
+            $('actionsBar').classList.remove('show');
+            hideStatus();
+            $('btnDownload').disabled = true;
+            $('btnDownload').textContent = '다운로드 (0개)';
+            $('btnZip').disabled = true;
+            $('keyword').value = '';
+            $('keyword').focus();
+        }
+
+        // Enter 키 검색
+        $('keyword').addEventListener('keydown', e => {
+            if (e.key === 'Enter') doSearch();
+        });
+    </script>
+</body>
+</html>
