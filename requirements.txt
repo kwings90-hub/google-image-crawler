@@ -2,3 +2,4 @@ flask==3.1.0
 requests==2.32.3
 Pillow==11.1.0
 gunicorn==23.0.0
+duckduckgo_search>=8.0.0

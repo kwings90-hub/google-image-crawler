@@ -1,7 +1,7 @@
 """
-구글 이미지 크롤링 모듈 (독립형)
+이미지 크롤링 모듈 (독립형)
 
-Google Custom Search API와 직접 크롤링 방식을 결합하여
+DuckDuckGo 이미지 검색과 Google Custom Search API를 결합하여
 고해상도 이미지를 검색하고 다운로드합니다.
 """
 
@@ -9,6 +9,7 @@ import os
 import re
 import time
 import logging
+import warnings
 import requests
 from pathlib import Path
 from typing import List, Optional, Dict
@@ -21,31 +22,18 @@ logger = logging.getLogger(__name__)
 
 class GoogleImageCrawler:
     """
-    구글 이미지 크롤링 클래스
+    DuckDuckGo 기반 이미지 검색 클래스
 
-    API 없이 직접 구글 이미지 검색 페이지를 크롤링하여
-    고해상도 이미지 URL을 추출합니다.
+    duckduckgo_search 라이브러리를 사용하여 이미지 URL을 추출합니다.
+    (구글 이미지 검색이 JS 렌더링 필수로 변경되어 대체)
     """
 
-    SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.webp'}
-
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-                          'AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
-                      'image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-        })
-        logger.info("GoogleImageCrawler 초기화 완료")
+        logger.info("GoogleImageCrawler 초기화 완료 (DuckDuckGo 백엔드)")
 
     def search_images(self, keyword: str, count: int = 20) -> List[str]:
         """
-        구글 이미지 검색 (크롤링 방식)
+        DuckDuckGo 이미지 검색
 
         Args:
             keyword: 검색 키워드
@@ -58,70 +46,35 @@ class GoogleImageCrawler:
             logger.warning("검색 키워드가 비어있습니다.")
             return []
 
-        logger.info(f"구글 이미지 크롤링 시작: '{keyword}' (요청: {count}개)")
+        logger.info(f"이미지 검색 시작: '{keyword}' (요청: {count}개)")
 
         try:
-            search_url = f"https://www.google.com/search?q={quote_plus(keyword)}&tbm=isch&tbs=isz:l"
-            logger.debug(f"검색 URL: {search_url}")
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                from duckduckgo_search import DDGS
 
-            response = self.session.get(search_url, timeout=15)
-            response.raise_for_status()
-            html = response.text
+            with DDGS() as ddgs:
+                results = list(ddgs.images(keyword, max_results=count, size='Large'))
 
             image_urls = []
-
-            # 패턴 1: 직접 이미지 URL
-            pattern1 = r'(https?://[^\s"\'<>\[\]]+\.(?:jpg|jpeg|png|webp))(?:\?[^\s"\'<>\[\]]*)?'
-            urls1 = re.findall(pattern1, html, re.IGNORECASE)
-            urls1 = [u for u in urls1
-                     if 'google' not in u.lower()
-                     and 'gstatic' not in u.lower()
-                     and 'encrypted-tbn' not in u.lower()]
-            image_urls.extend(urls1)
-
-            # 패턴 2: data-src 속성
-            pattern2 = r'data-src="(https?://[^"]+)"'
-            urls2 = re.findall(pattern2, html)
-            urls2 = [u for u in urls2
-                     if 'google' not in u.lower()
-                     and 'gstatic' not in u.lower()]
-            image_urls.extend(urls2)
-
-            # 패턴 3: 원본 이미지 URL ("ou":"...")
-            pattern3 = r'"ou":"(https?://[^"]+)"'
-            urls3 = re.findall(pattern3, html)
-            image_urls.extend(urls3)
-
-            # 중복 제거 및 필터링
             seen = set()
-            filtered_urls = []
-            for url in image_urls:
-                if 'google.com' in url or 'gstatic.com' in url or 'googleapis.com' in url:
-                    continue
-                if 'encrypted-tbn' in url:
-                    continue
-                if len(url) < 20:
-                    continue
-                if url in seen:
+            for item in results:
+                url = item.get('image', '')
+                if not url or url in seen or len(url) < 20:
                     continue
                 seen.add(url)
-                filtered_urls.append(url)
-                if len(filtered_urls) >= count:
-                    break
+                image_urls.append(url)
 
-            logger.info(f"크롤링 완료: {len(filtered_urls)}개 이미지 URL 발견")
-            return filtered_urls
+            logger.info(f"검색 완료: {len(image_urls)}개 이미지 URL 발견")
+            return image_urls
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"네트워크 오류: {e}")
-            return []
         except Exception as e:
-            logger.error(f"크롤링 오류: {e}")
+            logger.error(f"검색 오류: {e}")
             return []
 
     def search_images_advanced(self, keyword: str, count: int = 20) -> List[str]:
         """
-        구글 이미지 고급 검색 (2MP 이상 필터)
+        고급 이미지 검색 (Wallpaper 사이즈 필터)
 
         Args:
             keyword: 검색 키워드
@@ -133,33 +86,27 @@ class GoogleImageCrawler:
         if not keyword:
             return []
 
-        logger.info(f"구글 이미지 고급 검색: '{keyword}'")
+        logger.info(f"고급 이미지 검색: '{keyword}'")
 
         try:
-            search_url = f"https://www.google.com/search?q={quote_plus(keyword)}&tbm=isch&tbs=isz:lt,islt:2mp"
-            response = self.session.get(search_url, timeout=15)
-            response.raise_for_status()
-            html = response.text
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                from duckduckgo_search import DDGS
+
+            with DDGS() as ddgs:
+                results = list(ddgs.images(keyword, max_results=count, size='Wallpaper'))
 
             image_urls = []
-            patterns = [
-                r'(https?://[^\s"\'<>\[\]]+\.(?:jpg|jpeg|png|webp))(?:\?[^\s"\'<>\[\]]*)?',
-                r'"ou":"(https?://[^"]+)"',
-                r'data-src="(https?://[^"]+)"',
-            ]
+            seen = set()
+            for item in results:
+                url = item.get('image', '')
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                image_urls.append(url)
 
-            for pattern in patterns:
-                urls = re.findall(pattern, html, re.IGNORECASE)
-                for url in urls:
-                    if ('google' not in url.lower()
-                            and 'gstatic' not in url.lower()
-                            and 'encrypted-tbn' not in url.lower()):
-                        if url not in image_urls:
-                            image_urls.append(url)
-
-            unique_urls = list(dict.fromkeys(image_urls))[:count]
-            logger.info(f"고급 검색 완료: {len(unique_urls)}개 URL")
-            return unique_urls
+            logger.info(f"고급 검색 완료: {len(image_urls)}개 URL")
+            return image_urls
 
         except Exception as e:
             logger.error(f"고급 검색 오류: {e}")
