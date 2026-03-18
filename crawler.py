@@ -53,8 +53,19 @@ class GoogleImageCrawler:
                 warnings.simplefilter("ignore")
                 from duckduckgo_search import DDGS
 
-            with DDGS() as ddgs:
-                results = list(ddgs.images(keyword, max_results=count, size='Large'))
+            results = []
+            for attempt in range(3):
+                try:
+                    with DDGS() as ddgs:
+                        results = list(ddgs.images(keyword, max_results=count, size='Large'))
+                    break
+                except Exception as e:
+                    if '403' in str(e) or 'Ratelimit' in str(e):
+                        wait = 2 * (attempt + 1)
+                        logger.warning(f"Rate limit 발생, {wait}초 후 재시도 ({attempt+1}/3)")
+                        time.sleep(wait)
+                    else:
+                        raise
 
             image_urls = []
             seen = set()
@@ -93,8 +104,19 @@ class GoogleImageCrawler:
                 warnings.simplefilter("ignore")
                 from duckduckgo_search import DDGS
 
-            with DDGS() as ddgs:
-                results = list(ddgs.images(keyword, max_results=count, size='Wallpaper'))
+            results = []
+            for attempt in range(3):
+                try:
+                    with DDGS() as ddgs:
+                        results = list(ddgs.images(keyword, max_results=count, size='Wallpaper'))
+                    break
+                except Exception as e:
+                    if '403' in str(e) or 'Ratelimit' in str(e):
+                        wait = 2 * (attempt + 1)
+                        logger.warning(f"Rate limit 발생, {wait}초 후 재시도 ({attempt+1}/3)")
+                        time.sleep(wait)
+                    else:
+                        raise
 
             image_urls = []
             seen = set()

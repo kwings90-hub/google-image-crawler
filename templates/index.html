@@ -508,9 +508,9 @@
             $('keyword').focus();
         }
 
-        // Enter 키 검색
+        // Enter 키 검색 (중복 방지)
         $('keyword').addEventListener('keydown', e => {
-            if (e.key === 'Enter') doSearch();
+            if (e.key === 'Enter' && !$('btnSearch').disabled) doSearch();
         });
     </script>
 </body>
